@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+import json
+import os
 
 app = FastAPI()
 
-# Allow Streamlit frontend access
+# Allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,7 +15,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-messages = []
+DB_FILE = "messages.json"
+
+# Create JSON file if not exists
+if not os.path.exists(DB_FILE):
+    with open(DB_FILE, "w") as f:
+        json.dump([], f)
 
 class Message(BaseModel):
     sender: str
@@ -32,15 +39,29 @@ def home():
 
 @app.post("/send")
 def send_message(msg: Message):
+
+    with open(DB_FILE, "r") as f:
+        messages = json.load(f)
+
     messages.append(msg.dict())
-    return {"status": "stored"}
+
+    with open(DB_FILE, "w") as f:
+        json.dump(messages, f)
+
+    return {
+        "status": "stored",
+        "total_messages": len(messages)
+    }
 
 @app.get("/get/{receiver}")
 def get_message(receiver: str):
 
+    with open(DB_FILE, "r") as f:
+        messages = json.load(f)
+
     for msg in reversed(messages):
 
-        if msg["receiver"].lower() == receiver.lower():
+        if msg["receiver"].strip().lower() == receiver.strip().lower():
             return msg
 
     return {"error": "no message"}
