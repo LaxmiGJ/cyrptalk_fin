@@ -4,9 +4,8 @@ from deep_translator import GoogleTranslator
 import zlib
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from transformers import pipeline
 
-BACKEND_URL = "https://cyrptalk-fin.onrender.com/send"
+BACKEND_URL = "http://127.0.0.1:8000/send"
 
 LANG = {
     "English": "en",
@@ -23,42 +22,84 @@ EMOJI = {
     "anger": "😡",
     "fear": "😨",
     "surprise": "😲",
+    "confusion": "😕",
     "neutral": "😐"
 }
 
-# Load emotion model (Hugging Face)
-emotion_classifier = pipeline(
-    "text-classification",
-    model="j-hartmann/emotion-english-distilroberta-base"
-)
+# -------------------------------
+# STRONG KEYWORD EMOTION MODEL
+# -------------------------------
+
+EMOTION_KEYWORDS = {
+    "joy": [
+        "happy", "happiness", "joy", "joyful", "excited", "great", "good", "awesome",
+        "love", "loved", "like", "amazing", "wonderful", "fantastic", "best", "smile",
+        "cheerful", "delighted", "pleasant", "enjoy", "enjoying"
+    ],
+    "sadness": [
+        "sad", "cry", "crying", "depressed", "unhappy", "hurt", "pain", "lonely",
+        "miss", "missing", "bad", "worst", "terrible", "upset", "heartbroken"
+    ],
+    "anger": [
+        "angry", "mad", "furious", "annoyed", "irritated", "hate", "hated",
+        "frustrated", "rage", "offended", "disgusted"
+    ],
+    "fear": [
+        "scared", "afraid", "fear", "terrified", "panic", "worried", "anxious",
+        "nervous", "frightened"
+    ],
+    "surprise": [
+        "surprised", "shock", "shocked", "wow", "unexpected", "amazed", "astonished"
+    ],
+    "confusion": [
+        "confused", "confusing", "unsure", "don't know", "doubt", "unclear"
+    ]
+}
+
+NEGATIONS = ["not", "no", "never", "don't", "dont", "isn't", "arent", "wasn't", "wont", "cannot"]
 
 def detect_emotion(text):
 
-    result = emotion_classifier(text)[0]
+    text = text.lower()
 
-    label = result["label"].lower()
+    words = text.split()
 
-    mapping = {
-        "joy": "joy",
-        "happiness": "joy",
-        "sadness": "sadness",
-        "anger": "anger",
-        "fear": "fear",
-        "surprise": "surprise",
-        "neutral": "neutral",
-        "disgust": "anger"
+    scores = {
+        "joy": 0,
+        "sadness": 0,
+        "anger": 0,
+        "fear": 0,
+        "surprise": 0,
+        "confusion": 0
     }
 
-    return mapping.get(label, "neutral")
+    # check keywords
+    for i, word in enumerate(words):
+
+        for emotion, keywords in EMOTION_KEYWORDS.items():
+
+            if word in keywords:
+
+                # NEGATION CHECK (previous word)
+                if i > 0 and words[i - 1] in NEGATIONS:
+                    scores[emotion] -= 2   # reverse meaning
+                else:
+                    scores[emotion] += 2
+
+    # pick best emotion
+    best_emotion = max(scores, key=scores.get)
+
+    # if all zero → neutral
+    if scores[best_emotion] == 0:
+        return "neutral"
+
+    return best_emotion
 
 def encrypt(data):
 
     key = AESGCM.generate_key(bit_length=128)
-
     aes = AESGCM(key)
-
     nonce = os.urandom(12)
-
     enc = aes.encrypt(nonce, data, None)
 
     return enc, key, nonce
@@ -81,7 +122,6 @@ if st.button("Send"):
     ).translate(msg)
 
     emotion = detect_emotion(translated)
-
     emoji = EMOJI.get(emotion, "😐")
 
     tagged = f"[{emotion.upper()} {emoji}] {translated}"
@@ -106,6 +146,7 @@ if st.button("Send"):
 
     if r.status_code == 200:
         st.success("Message Sent ✅")
+        st.write("Detected Emotion:", emotion)
         st.write(tagged)
     else:
         st.error("Failed to send message ❌")
