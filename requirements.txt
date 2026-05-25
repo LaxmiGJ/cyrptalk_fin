@@ -5,3 +5,5 @@ uvicorn
 cryptography
 deep-translator
 pydantic
+transformers
+torch
