@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-import json
-import os
 
 app = FastAPI()
 
@@ -14,11 +12,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_FILE = "messages.json"
-
-if not os.path.exists(DB_FILE):
-    with open(DB_FILE, "w") as f:
-        json.dump([], f)
+# ----------------------------
+# IN-MEMORY DATABASE (FIX)
+# ----------------------------
+messages = []
 
 class Message(BaseModel):
     sender: str
@@ -37,22 +34,11 @@ def home():
 
 @app.post("/send")
 def send_message(msg: Message):
-
-    with open(DB_FILE, "r") as f:
-        messages = json.load(f)
-
     messages.append(msg.dict())
-
-    with open(DB_FILE, "w") as f:
-        json.dump(messages, f)
-
-    return {"status": "stored"}
+    return {"status": "stored", "total_messages": len(messages)}
 
 @app.get("/get/{receiver}")
 def get_message(receiver: str):
-
-    with open(DB_FILE, "r") as f:
-        messages = json.load(f)
 
     for msg in reversed(messages):
         if msg["receiver"].strip().lower() == receiver.strip().lower():
