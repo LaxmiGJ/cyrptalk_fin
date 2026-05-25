@@ -4,6 +4,7 @@ from deep_translator import GoogleTranslator
 import zlib
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from transformers import pipeline
 
 BACKEND_URL = "https://cyrptalk-fin.onrender.com/send"
 
@@ -22,30 +23,33 @@ EMOJI = {
     "anger": "😡",
     "fear": "😨",
     "surprise": "😲",
-    "confusion": "😕",
     "neutral": "😐"
 }
 
+# Load emotion model (Hugging Face)
+emotion_classifier = pipeline(
+    "text-classification",
+    model="j-hartmann/emotion-english-distilroberta-base"
+)
+
 def detect_emotion(text):
 
-    text = text.lower()
+    result = emotion_classifier(text)[0]
 
-    if any(w in text for w in ["happy", "good", "great", "love"]):
-        return "joy"
+    label = result["label"].lower()
 
-    if any(w in text for w in ["sad", "cry", "bad"]):
-        return "sadness"
+    mapping = {
+        "joy": "joy",
+        "happiness": "joy",
+        "sadness": "sadness",
+        "anger": "anger",
+        "fear": "fear",
+        "surprise": "surprise",
+        "neutral": "neutral",
+        "disgust": "anger"
+    }
 
-    if "angry" in text:
-        return "anger"
-
-    if "scared" in text:
-        return "fear"
-
-    if "?" in text:
-        return "confusion"
-
-    return "neutral"
+    return mapping.get(label, "neutral")
 
 def encrypt(data):
 
@@ -62,79 +66,46 @@ def encrypt(data):
 st.title("🔐 CrypTalk Sender")
 
 sender = st.text_input("Sender Name")
-
 receiver = st.text_input("Receiver Name")
 
-s_lang = st.selectbox(
-    "Sender Language",
-    list(LANG.keys())
-)
-
-r_lang = st.selectbox(
-    "Receiver Language",
-    list(LANG.keys())
-)
+s_lang = st.selectbox("Sender Language", list(LANG.keys()))
+r_lang = st.selectbox("Receiver Language", list(LANG.keys()))
 
 msg = st.text_area("Message")
 
 if st.button("Send"):
 
-    if sender == "" or receiver == "" or msg == "":
-        st.warning("Please fill all fields")
-        st.stop()
+    translated = GoogleTranslator(
+        source=LANG[s_lang],
+        target="en"
+    ).translate(msg)
 
-    try:
+    emotion = detect_emotion(translated)
 
-        translated = GoogleTranslator(
-            source=LANG[s_lang],
-            target="en"
-        ).translate(msg)
+    emoji = EMOJI.get(emotion, "😐")
 
-        emotion = detect_emotion(translated)
+    tagged = f"[{emotion.upper()} {emoji}] {translated}"
 
-        emoji = EMOJI[emotion]
+    compressed = zlib.compress(tagged.encode())
 
-        tagged = f"[{emotion.upper()} {emoji}] {translated}"
+    enc, key, nonce = encrypt(compressed)
 
-        compressed = zlib.compress(tagged.encode())
+    payload = {
+        "sender": sender,
+        "receiver": receiver,
+        "encrypted": enc.hex(),
+        "key": key.hex(),
+        "nonce": nonce.hex(),
+        "sender_lang": s_lang,
+        "receiver_lang": r_lang,
+        "emotion": emotion,
+        "tagged_text": tagged
+    }
 
-        enc, key, nonce = encrypt(compressed)
+    r = requests.post(BACKEND_URL, json=payload)
 
-        payload = {
-            "sender": sender,
-            "receiver": receiver,
-            "encrypted": enc.hex(),
-            "key": key.hex(),
-            "nonce": nonce.hex(),
-            "sender_lang": s_lang,
-            "receiver_lang": r_lang,
-            "emotion": emotion,
-            "tagged_text": tagged
-        }
-
-        r = requests.post(
-            BACKEND_URL,
-            json=payload
-        )
-
-        if r.status_code == 200:
-
-            st.success("Message Sent ✅")
-
-            st.write(r.json())
-
-            st.markdown("---")
-
-            st.write(tagged)
-
-        else:
-
-            st.error(f"Backend Error: {r.status_code}")
-
-            st.write(r.text)
-
-    except Exception as e:
-
-        st.error("Connection Failed ❌")
-
-        st.exception(e)
+    if r.status_code == 200:
+        st.success("Message Sent ✅")
+        st.write(tagged)
+    else:
+        st.error("Failed to send message ❌")
