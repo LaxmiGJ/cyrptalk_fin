@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+import json
+import os
 
 app = FastAPI()
 
@@ -12,10 +14,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------------------
-# IN-MEMORY DATABASE (FIX)
-# ----------------------------
-messages = []
+DB_FILE = "messages.json"
+
+# ALWAYS ensure file exists
+if not os.path.exists(DB_FILE):
+    with open(DB_FILE, "w") as f:
+        json.dump([], f)
 
 class Message(BaseModel):
     sender: str
@@ -28,17 +32,37 @@ class Message(BaseModel):
     emotion: str
     tagged_text: str
 
+
 @app.get("/")
 def home():
     return {"status": "CrypTalk Backend Running"}
 
+
 @app.post("/send")
 def send_message(msg: Message):
+
+    try:
+        with open(DB_FILE, "r") as f:
+            messages = json.load(f)
+    except:
+        messages = []
+
     messages.append(msg.dict())
-    return {"status": "stored", "total_messages": len(messages)}
+
+    with open(DB_FILE, "w") as f:
+        json.dump(messages, f)
+
+    return {"status": "stored", "count": len(messages)}
+
 
 @app.get("/get/{receiver}")
 def get_message(receiver: str):
+
+    try:
+        with open(DB_FILE, "r") as f:
+            messages = json.load(f)
+    except:
+        return {"error": "db error"}
 
     for msg in reversed(messages):
         if msg["receiver"].strip().lower() == receiver.strip().lower():
