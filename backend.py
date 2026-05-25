@@ -6,7 +6,6 @@ import os
 
 app = FastAPI()
 
-# Allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +16,6 @@ app.add_middleware(
 
 DB_FILE = "messages.json"
 
-# Create JSON file if not exists
 if not os.path.exists(DB_FILE):
     with open(DB_FILE, "w") as f:
         json.dump([], f)
@@ -48,10 +46,7 @@ def send_message(msg: Message):
     with open(DB_FILE, "w") as f:
         json.dump(messages, f)
 
-    return {
-        "status": "stored",
-        "total_messages": len(messages)
-    }
+    return {"status": "stored"}
 
 @app.get("/get/{receiver}")
 def get_message(receiver: str):
@@ -60,7 +55,6 @@ def get_message(receiver: str):
         messages = json.load(f)
 
     for msg in reversed(messages):
-
         if msg["receiver"].strip().lower() == receiver.strip().lower():
             return msg
 
