@@ -5,7 +5,7 @@ import zlib
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-BACKEND_URL = "http://127.0.0.1:8000/send"
+BACKEND_URL = "https://cyrptalk-fin.onrender.com/send"
 
 LANG = {
     "English": "en",
