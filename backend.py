@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-import json
-import os
 
 app = FastAPI()
 
@@ -14,12 +12,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_FILE = "messages.json"
-
-# ALWAYS ensure file exists
-if not os.path.exists(DB_FILE):
-    with open(DB_FILE, "w") as f:
-        json.dump([], f)
+messages = []
 
 class Message(BaseModel):
     sender: str
@@ -32,40 +25,25 @@ class Message(BaseModel):
     emotion: str
     tagged_text: str
 
-
 @app.get("/")
 def home():
-    return {"status": "CrypTalk Backend Running"}
-
+    return {"status": "running", "stored_messages": len(messages)}
 
 @app.post("/send")
-def send_message(msg: Message):
-
-    try:
-        with open(DB_FILE, "r") as f:
-            messages = json.load(f)
-    except:
-        messages = []
-
+def send(msg: Message):
+    print("RECEIVED MESSAGE:", msg)
     messages.append(msg.dict())
-
-    with open(DB_FILE, "w") as f:
-        json.dump(messages, f)
-
+    print("TOTAL MESSAGES:", len(messages))
     return {"status": "stored", "count": len(messages)}
 
-
 @app.get("/get/{receiver}")
-def get_message(receiver: str):
+def get(receiver: str):
 
-    try:
-        with open(DB_FILE, "r") as f:
-            messages = json.load(f)
-    except:
-        return {"error": "db error"}
+    print("LOOKING FOR:", receiver)
+    print("DATABASE:", messages)
 
     for msg in reversed(messages):
         if msg["receiver"].strip().lower() == receiver.strip().lower():
             return msg
 
-    return {"error": "no message"}
+    return {"error": "no message", "available_receivers": [m["receiver"] for m in messages]}
