@@ -65,46 +65,76 @@ sender = st.text_input("Sender Name")
 
 receiver = st.text_input("Receiver Name")
 
-s_lang = st.selectbox("Sender Language", list(LANG.keys()))
+s_lang = st.selectbox(
+    "Sender Language",
+    list(LANG.keys())
+)
 
-r_lang = st.selectbox("Receiver Language", list(LANG.keys()))
+r_lang = st.selectbox(
+    "Receiver Language",
+    list(LANG.keys())
+)
 
 msg = st.text_area("Message")
 
 if st.button("Send"):
 
-    translated = GoogleTranslator(
-        source=LANG[s_lang],
-        target="en"
-    ).translate(msg)
+    if sender == "" or receiver == "" or msg == "":
+        st.warning("Please fill all fields")
+        st.stop()
 
-    emotion = detect_emotion(translated)
+    try:
 
-    emoji = EMOJI[emotion]
+        translated = GoogleTranslator(
+            source=LANG[s_lang],
+            target="en"
+        ).translate(msg)
 
-    tagged = f"[{emotion.upper()} {emoji}] {translated}"
+        emotion = detect_emotion(translated)
 
-    compressed = zlib.compress(tagged.encode())
+        emoji = EMOJI[emotion]
 
-    enc, key, nonce = encrypt(compressed)
+        tagged = f"[{emotion.upper()} {emoji}] {translated}"
 
-    payload = {
-        "sender": sender,
-        "receiver": receiver,
-        "encrypted": enc.hex(),
-        "key": key.hex(),
-        "nonce": nonce.hex(),
-        "sender_lang": s_lang,
-        "receiver_lang": r_lang,
-        "emotion": emotion,
-        "tagged_text": tagged
-    }
+        compressed = zlib.compress(tagged.encode())
 
-    r = requests.post(BACKEND_URL, json=payload)
+        enc, key, nonce = encrypt(compressed)
 
-    if r.status_code == 200:
-        st.success("Message Sent ✅")
-        st.write(tagged)
+        payload = {
+            "sender": sender,
+            "receiver": receiver,
+            "encrypted": enc.hex(),
+            "key": key.hex(),
+            "nonce": nonce.hex(),
+            "sender_lang": s_lang,
+            "receiver_lang": r_lang,
+            "emotion": emotion,
+            "tagged_text": tagged
+        }
 
-    else:
-        st.error("Backend connection failed ❌")
+        r = requests.post(
+            BACKEND_URL,
+            json=payload
+        )
+
+        if r.status_code == 200:
+
+            st.success("Message Sent ✅")
+
+            st.write(r.json())
+
+            st.markdown("---")
+
+            st.write(tagged)
+
+        else:
+
+            st.error(f"Backend Error: {r.status_code}")
+
+            st.write(r.text)
+
+    except Exception as e:
+
+        st.error("Connection Failed ❌")
+
+        st.exception(e)
