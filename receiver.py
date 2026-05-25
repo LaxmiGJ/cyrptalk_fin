@@ -1,8 +1,10 @@
 import streamlit as st
+import requests
 from deep_translator import GoogleTranslator
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import zlib
-from db import get_latest_message, get_all_messages_for_receiver
+
+BACKEND_URL = "https://cyrptalk-fin.onrender.com"
 
 LANG = {
     "English": "en",
@@ -14,20 +16,36 @@ LANG = {
 }
 
 def decrypt(enc, key, nonce):
+
     aes = AESGCM(bytes.fromhex(key))
-    return aes.decrypt(bytes.fromhex(nonce), bytes.fromhex(enc), None)
+
+    return aes.decrypt(
+        bytes.fromhex(nonce),
+        bytes.fromhex(enc),
+        None
+    )
 
 st.title("📩 CrypTalk Receiver")
 
 receiver_name = st.text_input("Enter Receiver Name")
-chosen_lang = st.selectbox("Choose Output Language", list(LANG.keys()))
+
+chosen_lang = st.selectbox(
+    "Choose Output Language",
+    list(LANG.keys())
+)
 
 if st.button("Receive"):
 
-    data = get_latest_message(receiver_name)
+    res = requests.get(
+        f"{BACKEND_URL}/{receiver_name}"
+    )
 
-    if data is None:
+    data = res.json()
+
+    if "error" in data:
+
         st.warning("No message found ❌")
+
         st.stop()
 
     decrypted = decrypt(
@@ -39,8 +57,11 @@ if st.button("Receive"):
     text = zlib.decompress(decrypted).decode()
 
     if "] " in text:
+
         tag, msg = text.split("] ", 1)
+
     else:
+
         tag, msg = "", text
 
     translated = GoogleTranslator(
@@ -51,12 +72,18 @@ if st.button("Receive"):
     st.subheader("📨 Message Output")
 
     st.write("Sender:", data["sender"])
+
     st.write("Emotion:", data["emotion"])
 
     st.markdown("---")
 
     st.write("Original:")
+
     st.success(msg)
 
     st.write("Translated:")
-    st.info(f"{tag}] {translated}" if tag else translated)
+
+    st.info(
+        f"{tag}] {translated}"
+        if tag else translated
+    )
