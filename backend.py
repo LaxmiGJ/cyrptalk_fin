@@ -27,23 +27,42 @@ class Message(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "running", "stored_messages": len(messages)}
+    return {
+        "status": "backend running",
+        "messages_count": len(messages),
+        "messages": messages
+    }
 
 @app.post("/send")
-def send(msg: Message):
-    print("RECEIVED MESSAGE:", msg)
+def send_message(msg: Message):
+
+    print("MESSAGE RECEIVED")
+
     messages.append(msg.dict())
-    print("TOTAL MESSAGES:", len(messages))
-    return {"status": "stored", "count": len(messages)}
+
+    print(messages)
+
+    return {
+        "status": "stored",
+        "count": len(messages)
+    }
 
 @app.get("/get/{receiver}")
-def get(receiver: str):
+def get_message(receiver: str):
 
-    print("LOOKING FOR:", receiver)
-    print("DATABASE:", messages)
+    print("SEARCHING FOR:", receiver)
 
     for msg in reversed(messages):
+
+        print("CHECKING:", msg["receiver"])
+
         if msg["receiver"].strip().lower() == receiver.strip().lower():
+
+            print("FOUND MESSAGE")
+
             return msg
 
-    return {"error": "no message", "available_receivers": [m["receiver"] for m in messages]}
+    return {
+        "error": "no message",
+        "stored_messages": messages
+    }
